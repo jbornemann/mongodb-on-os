@@ -38,7 +38,6 @@ parameters:
     displayName: "Replica Set Name"
     description: "The name of the replica set."
     value: rs0
-    required: true
 
   - name: MONGODB_KEYFILE_VALUE
     displayName: "Keyfile Content"
@@ -65,20 +64,6 @@ parameters:
     value: "512Mi"
 
 objects:
-  # A non-headless service which takes pod readiness into consideration
-  - kind: Service
-    apiVersion: v1
-    metadata:
-      name: "mongodb"
-    spec:
-      # the list of ports that are exposed by this service
-      ports:
-        - name: mongodb
-          port: 27017
-      # will route traffic to pods having labels matching this selector
-      selector:
-        name: "mongodb"
-
   # A headless service to create DNS records
   - kind: Service
     apiVersion: v1
@@ -103,7 +88,7 @@ objects:
     spec:
       # pets get DNS/hostnames that follow the pattern: ${metadata.name}-NUM.${spec.serviceName}.default.svc.cluster.local
       serviceName: "mongodb-internal"
-      replicas: 3
+      replicas: 4
       # describes the pod that will be created if insufficient replicas are detected
       template:
         metadata:
