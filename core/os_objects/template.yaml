@@ -34,10 +34,16 @@ parameters:
     from: "[a-zA-Z0-9]{16}"
     required: true
 
-  - name: MONGODB_REPLICA_NAME
-    displayName: "Replica Set Name"
-    description: "The name of the replica set."
+  - name: MONGODB_SHARD_REPLICA_NAME
+    displayName: "Shard Replica Set Name"
+    description: "The name of the shard replica set."
     value: rs0
+    required: true
+
+  - name: MONGODB_CONFIGSVR_REPLICA_NAME
+    displayName: "ConfigServer Replica Set Name"
+    description: "The name of the configuration server replica set."
+    value: cs0
     required: true
 
   - name: MONGODB_KEYFILE_VALUE
@@ -50,7 +56,7 @@ parameters:
   - name: MONGODB_IMAGE
     displayName: "MongoDB Docker Image"
     description: "A reference to a supported MongoDB Docker image."
-    value: "bornemannjs/mongodb-34:0.1"
+    value: "bornemannjs/mongodb-34:0.15"
     required: true
 
   - name: VOLUME_CAPACITY
@@ -69,7 +75,7 @@ objects:
   - kind: Service
     apiVersion: v1
     metadata:
-      name: "mongodb-internal"
+      name: "mongodb-shard-internal"
       annotations:
         service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
     spec:
@@ -80,22 +86,22 @@ objects:
           port: 27017
       # will route traffic to pods having labels matching this selector
       selector:
-        name: "mongodb"
+        name: "mongodb-shard"
 
   - kind: StatefulSet
     apiVersion: apps/v1beta1
     metadata:
-      name: "mongodb"
+      name: "mongodb-shard"
     spec:
       # pets get DNS/hostnames that follow the pattern: ${metadata.name}-NUM.${spec.serviceName}.default.svc.cluster.local
-      serviceName: "mongodb-internal"
+      serviceName: "mongodb-shard-internal"
       replicas: 4
       # describes the pod that will be created if insufficient replicas are detected
       template:
         metadata:
           # this label will be used for count running pods
           labels:
-            name: "mongodb"
+            name: "mongodb-shard"
         spec:
           containers:
             - name: mongo-container
@@ -117,11 +123,11 @@ objects:
                 - name: MONGODB_ADMIN_PASSWORD
                   value: "${MONGODB_ADMIN_PASSWORD}"
                 - name: MONGODB_REPLICA_NAME
-                  value: "${MONGODB_REPLICA_NAME}"
+                  value: "${MONGODB_SHARD_REPLICA_NAME}"
                 - name: MONGODB_KEYFILE_VALUE
                   value: "${MONGODB_KEYFILE_VALUE}"
                 - name: MONGODB_SERVICE_NAME
-                  value: "mongodb-internal"
+                  value: "mongodb-shard-internal"
               resources:
                 limits:
                   memory: "${MEMORY_LIMIT}"
@@ -133,6 +139,80 @@ objects:
       volumeClaimTemplates:
         - metadata:
             name: mongo-data
+            annotations:
+          spec:
+            accessModes: [ ReadWriteOnce ]
+            resources:
+              requests:
+                storage: "${VOLUME_CAPACITY}"
+  # A headless service to create DNS records
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "mongodb-configsvr-internal"
+      annotations:
+        service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+    spec:
+      clusterIP: None
+      # the list of ports that are exposed by this service
+      ports:
+        - name: mongodb
+          port: 27017
+      # will route traffic to pods having labels matching this selector
+      selector:
+        name: "mongodb-configsvr"
+
+  - kind: StatefulSet
+    apiVersion: apps/v1beta1
+    metadata:
+      name: "mongodb-configsvr"
+    spec:
+      # pets get DNS/hostnames that follow the pattern: ${metadata.name}-NUM.${spec.serviceName}.default.svc.cluster.local
+      serviceName: "mongodb-configsvr-internal"
+      replicas: 3
+      # describes the pod that will be created if insufficient replicas are detected
+      template:
+        metadata:
+          # this label will be used for count running pods
+          labels:
+            name: "mongodb-configsvr"
+        spec:
+          containers:
+            - name: mongo-container
+              image: "${MONGODB_IMAGE}"
+              ports:
+                - containerPort: 27017
+              args:
+                - "run-configsvr"
+              volumeMounts:
+                - name: mongo-configsvr-data
+                  mountPath: "/var/lib/mongodb/data"
+              env:
+                - name: MONGODB_USER
+                  value: "${MONGODB_USER}"
+                - name: MONGODB_PASSWORD
+                  value: "${MONGODB_PASSWORD}"
+                - name: MONGODB_DATABASE
+                  value: "${MONGODB_DATABASE}"
+                - name: MONGODB_ADMIN_PASSWORD
+                  value: "${MONGODB_ADMIN_PASSWORD}"
+                - name: MONGODB_REPLICA_NAME
+                  value: "${MONGODB_CONFIGSVR_REPLICA_NAME}"
+                - name: MONGODB_KEYFILE_VALUE
+                  value: "${MONGODB_KEYFILE_VALUE}"
+                - name: MONGODB_SERVICE_NAME
+                  value: "mongodb-configsvr-internal"
+              resources:
+                limits:
+                  memory: "${MEMORY_LIMIT}"
+              readinessProbe:
+                exec:
+                  command:
+                    - stat
+                    - /tmp/initialized
+      volumeClaimTemplates:
+        - metadata:
+            name: mongo-configsvr-data
             annotations:
           spec:
             accessModes: [ ReadWriteOnce ]
