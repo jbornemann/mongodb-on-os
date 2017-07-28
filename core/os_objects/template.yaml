@@ -78,6 +78,7 @@ objects:
       name: "mongodb-shard-internal"
       annotations:
         service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+        service.alpha.openshift.io/dependencies: '[{"name":"mongodb-configsvr-internal","namespace":"","kind":"Service"}]'
     spec:
       clusterIP: None
       # the list of ports that are exposed by this service
@@ -86,12 +87,12 @@ objects:
           port: 27017
       # will route traffic to pods having labels matching this selector
       selector:
-        name: "mongodb-shard"
+        name: "mongodbshard"
 
   - kind: StatefulSet
     apiVersion: apps/v1beta1
     metadata:
-      name: "mongodb-shard"
+      name: "mongodbshard"
     spec:
       # pets get DNS/hostnames that follow the pattern: ${metadata.name}-NUM.${spec.serviceName}.default.svc.cluster.local
       serviceName: "mongodb-shard-internal"
@@ -99,9 +100,9 @@ objects:
       # describes the pod that will be created if insufficient replicas are detected
       template:
         metadata:
-          # this label will be used for count running pods
           labels:
-            name: "mongodb-shard"
+            name: "mongodbshard"
+            app: "mongodb"
         spec:
           containers:
             - name: mongo-container
@@ -160,12 +161,12 @@ objects:
           port: 27017
       # will route traffic to pods having labels matching this selector
       selector:
-        name: "mongodb-configsvr"
+        name: "mongodbconfigsvr"
 
   - kind: StatefulSet
     apiVersion: apps/v1beta1
     metadata:
-      name: "mongodb-configsvr"
+      name: "mongodbconfigsvr"
     spec:
       # pets get DNS/hostnames that follow the pattern: ${metadata.name}-NUM.${spec.serviceName}.default.svc.cluster.local
       serviceName: "mongodb-configsvr-internal"
@@ -173,9 +174,9 @@ objects:
       # describes the pod that will be created if insufficient replicas are detected
       template:
         metadata:
-          # this label will be used for count running pods
           labels:
-            name: "mongodb-configsvr"
+            name: "mongodbconfigsvr"
+            app: "mongodb"
         spec:
           containers:
             - name: mongo-container
