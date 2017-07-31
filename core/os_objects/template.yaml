@@ -70,15 +70,23 @@ parameters:
     description: "Maximum amount of memory the container can use."
     value: "512Mi"
 
+  - name: SHARD_SEED
+    displayName: "Shard seed"
+    description: "For creating unique objects from this template in a sharded environment. A value will be generated. Nothing to do here."
+    generate: expression
+    from: "[a-z]{3}"
+
 objects:
   # A headless service to create DNS records
   - kind: Service
     apiVersion: v1
     metadata:
-      name: "mongodb-shard-internal"
+      name: "mongodb-shard-internal-${SHARD_SEED}"
+      labels:
+        shard_seed: "${SHARD_SEED}"
       annotations:
         service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
-        service.alpha.openshift.io/dependencies: '[{"name":"mongodb-configsvr-internal","namespace":"","kind":"Service"}]'
+        service.alpha.openshift.io/dependencies: '[{"name":"mongodb-configsvr-internal-${SHARD_SEED}","namespace":"","kind":"Service"}]'
     spec:
       clusterIP: None
       # the list of ports that are exposed by this service
@@ -87,21 +95,22 @@ objects:
           port: 27017
       # will route traffic to pods having labels matching this selector
       selector:
-        name: "mongodbshard"
+        name: "mongodbshard${SHARD_SEED}"
 
   - kind: StatefulSet
     apiVersion: apps/v1beta1
     metadata:
-      name: "mongodbshard"
+      name: "mongodbshard${SHARD_SEED}"
     spec:
       # pets get DNS/hostnames that follow the pattern: ${metadata.name}-NUM.${spec.serviceName}.default.svc.cluster.local
-      serviceName: "mongodb-shard-internal"
+      serviceName: "mongodb-shard-internal-${SHARD_SEED}"
       replicas: 4
       # describes the pod that will be created if insufficient replicas are detected
       template:
         metadata:
           labels:
-            name: "mongodbshard"
+            name: "mongodbshard${SHARD_SEED}"
+            shard_seed: "${SHARD_SEED}"
             app: "mongodb"
         spec:
           containers:
@@ -142,6 +151,8 @@ objects:
       volumeClaimTemplates:
         - metadata:
             name: mongo-data
+            labels:
+              shard_seed: "${SHARD_SEED}"
             annotations:
           spec:
             accessModes: [ ReadWriteOnce ]
@@ -152,7 +163,9 @@ objects:
   - kind: Service
     apiVersion: v1
     metadata:
-      name: "mongodb-configsvr-internal"
+      name: "mongodb-configsvr-internal-${SHARD_SEED}"
+      labels:
+        shard_seed: "${SHARD_SEED}"
       annotations:
         service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
     spec:
@@ -163,21 +176,22 @@ objects:
           port: 27017
       # will route traffic to pods having labels matching this selector
       selector:
-        name: "mongodbconfigsvr"
+        name: "mongodbconfigsvr${SHARD_SEED}"
 
   - kind: StatefulSet
     apiVersion: apps/v1beta1
     metadata:
-      name: "mongodbconfigsvr"
+      name: "mongodbconfigsvr${SHARD_SEED}"
     spec:
       # pets get DNS/hostnames that follow the pattern: ${metadata.name}-NUM.${spec.serviceName}.default.svc.cluster.local
-      serviceName: "mongodb-configsvr-internal"
+      serviceName: "mongodb-configsvr-internal-${SHARD_SEED}"
       replicas: 3
       # describes the pod that will be created if insufficient replicas are detected
       template:
         metadata:
           labels:
-            name: "mongodbconfigsvr"
+            name: "mongodbconfigsvr${SHARD_SEED}"
+            shard_seed: "${SHARD_SEED}"
             app: "mongodb"
         spec:
           containers:
@@ -216,6 +230,8 @@ objects:
       volumeClaimTemplates:
         - metadata:
             name: mongo-configsvr-data
+            labels:
+              shard_seed: "${SHARD_SEED}"
             annotations:
           spec:
             accessModes: [ ReadWriteOnce ]
