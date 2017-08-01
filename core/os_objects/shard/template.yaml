@@ -30,7 +30,7 @@ parameters:
 
   - name: MONGODB_ADMIN_PASSWORD
     displayName: "MongoDB Admin Password"
-    description: "Password for the database admin user."
+    description: "Password for the admin user."
     generate: expression
     from: "[a-zA-Z0-9]{16}"
     required: true
@@ -43,7 +43,7 @@ parameters:
 
   - name: MONGODB_KEYFILE_VALUE
     displayName: "Keyfile Content"
-    description: "The value of the MongoDB keyfile (https://docs.mongodb.com/manual/core/security-internal-authentication/#internal-auth-keyfile)."
+    description: "The value of the MongoDB keyfile for inter-cluster communication. Must be the same throughout the cluster. See (https://docs.mongodb.com/manual/core/security-internal-authentication/#internal-auth-keyfile)."
     generate: expression
     from: "[a-zA-Z0-9]{255}"
     required: true
@@ -51,7 +51,7 @@ parameters:
   - name: MONGODB_IMAGE
     displayName: "MongoDB Docker Image"
     description: "A reference to a supported MongoDB Docker image."
-    value: "bornemannjs/mongodb-34:0.15"
+    value: "bornemannjs/mongodb-34:0.28"
     required: true
 
   - name: VOLUME_CAPACITY
@@ -78,6 +78,7 @@ objects:
     metadata:
       name: "mongodb-shard-internal-${SHARD_SEED}"
       labels:
+        app: mongodb
         shard_seed: "${SHARD_SEED}"
       annotations:
         service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
@@ -94,6 +95,7 @@ objects:
   - kind: StatefulSet
     apiVersion: apps/v1beta1
     metadata:
+      app: mongodb
       name: "mongodbshard${SHARD_SEED}"
     spec:
       # pets get DNS/hostnames that follow the pattern: ${metadata.name}-NUM.${spec.serviceName}.default.svc.cluster.local
@@ -137,15 +139,20 @@ objects:
               resources:
                 limits:
                   memory: "${MEMORY_LIMIT}"
+              livenessProbe:
+                initialDelaySeconds: 60
+                tcpSocket:
+                  port: 27017
               readinessProbe:
+                initialDelaySeconds: 10
                 exec:
                   command:
-                    - stat
-                    - /tmp/initialized
+                    - "mongo-is-ready"
       volumeClaimTemplates:
         - metadata:
             name: mongo-data
             labels:
+              app: mongodb
               shard_seed: "${SHARD_SEED}"
             annotations:
           spec:

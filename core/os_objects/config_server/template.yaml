@@ -8,15 +8,23 @@ metadata:
     iconClass: "icon-mongodb"
     tags: "database,mongodb,nosql,config"
 parameters:
+
   - name: MONGODB_CONFIGSVR_REPLICA_NAME
     displayName: "ConfigServer Replica Set Name"
     description: "The name of the configuration server replica set."
     value: cs0
     required: true
 
+  - name: MONGODB_ADMIN_PASSWORD
+    displayName: "MongoDB Admin Password"
+    description: "Password for the admin user."
+    generate: expression
+    from: "[a-zA-Z0-9]{16}"
+    required: true
+
   - name: MONGODB_KEYFILE_VALUE
     displayName: "Keyfile Content"
-    description: "The value of the MongoDB keyfile (https://docs.mongodb.com/manual/core/security-internal-authentication/#internal-auth-keyfile)."
+    description: "The value of the MongoDB keyfile for inter-cluster communication. Must be the same throughout the cluster. See (https://docs.mongodb.com/manual/core/security-internal-authentication/#internal-auth-keyfile)."
     generate: expression
     from: "[a-zA-Z0-9]{255}"
     required: true
@@ -24,7 +32,7 @@ parameters:
   - name: MONGODB_IMAGE
     displayName: "MongoDB Docker Image"
     description: "A reference to a supported MongoDB Docker image."
-    value: "bornemannjs/mongodb-34:0.15"
+    value: "bornemannjs/mongodb-34:0.28"
     required: true
 
   - name: VOLUME_CAPACITY
@@ -33,12 +41,19 @@ parameters:
     value: "1Gi"
     required: true
 
+  - name: MEMORY_LIMIT
+    displayName: "Memory Limit"
+    description: "Maximum amount of memory the container can use."
+    value: "512Mi"
+
 objects:
   # A headless service to create DNS records
   - kind: Service
     apiVersion: v1
     metadata:
       name: "mongodb-configsvr-internal"
+      labels:
+        app: mongodb
       annotations:
         service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
     spec:
@@ -55,6 +70,8 @@ objects:
     apiVersion: apps/v1beta1
     metadata:
       name: "mongodbconfigsvr"
+      labels:
+        app: mongodb
     spec:
       # pets get DNS/hostnames that follow the pattern: ${metadata.name}-NUM.${spec.serviceName}.default.svc.cluster.local
       serviceName: "mongodb-configsvr-internal"
@@ -81,19 +98,27 @@ objects:
                   value: "${MONGODB_CONFIGSVR_REPLICA_NAME}"
                 - name: MONGODB_KEYFILE_VALUE
                   value: "${MONGODB_KEYFILE_VALUE}"
+                - name: MONGODB_ADMIN_PASSWORD
+                  value: "${MONGODB_ADMIN_PASSWORD}"
                 - name: MONGODB_SERVICE_NAME
                   value: "mongodb-configsvr-internal"
               resources:
                 limits:
                   memory: "${MEMORY_LIMIT}"
+              livenessProbe:
+                initialDelaySeconds: 60
+                tcpSocket:
+                  port: 27017
               readinessProbe:
+                initialDelaySeconds: 10
                 exec:
                   command:
-                    - stat
-                    - /tmp/initialized
+                    - "mongo-is-ready"
       volumeClaimTemplates:
         - metadata:
             name: mongo-configsvr-data
+            labels:
+              app: mongodb
             annotations:
           spec:
             accessModes: [ ReadWriteOnce ]

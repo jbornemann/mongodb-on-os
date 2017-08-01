@@ -1,0 +1,149 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: mongodb-mongos-aws-on-openshift
+  annotations:
+    openshift.io/display-name: "AWS MongoDB Shard Router"
+    description: "MongoDB Shard Router on OpenShift, AWS Hosted"
+    iconClass: "icon-mongodb"
+    tags: "database,mongodb,nosql,mongos"
+parameters:
+
+  - name: MONGODB_ADMIN_PASSWORD
+    displayName: "MongoDB Admin Password"
+    description: "Password for the admin user."
+    generate: expression
+    from: "[a-zA-Z0-9]{16}"
+    required: true
+
+  - name: MONGODB_KEYFILE_VALUE
+    displayName: "Keyfile Content"
+    description: "The value of the MongoDB keyfile for inter-cluster communication. Must be the same throughout the cluster. See (https://docs.mongodb.com/manual/core/security-internal-authentication/#internal-auth-keyfile)."
+    required: true
+
+  - name: CONFIG_REPLSET_NAME
+    displayName: "Config Server RS Name"
+    description: "ReplicaSet name for the configuration server"
+    value: 'cs0'
+    required: true
+
+  - name: CONFIG_REPLSET_SERVER
+    displayName: "Config Server URI"
+    description: "A URI for the configuration server, (e.g mongodbconfigsvr-0.mongodb-configsvr-internal.myproject.svc.cluster.local:27017)"
+    value: 'mongodbconfigsvr-0.mongodb-configsvr-internal.myproject.svc.cluster.local:27017'
+    required: true
+
+  - name: REPLSET_NAMES
+    displayName: "ReplicaSet Names"
+    description: "The names of all the ReplicaSets of each shard to cluster (Corresponds with order of REPLSET_SERVERS). Comma delimited. (e.g rs0,rs1,rs2)"
+    value: 'rs0,rs1'
+    required: true
+
+  - name: REPLSET_SERVERS
+    displayName: "ReplicaSet URIs"
+    description: "URIs of a ReplicaSet member from each shard to add to cluster (Corresponds with order of REPLSET_NAMES). Comma delimited. (e.g mongodbshardpmg-1.mongodb-shard-internal-pmg.myproject.svc.cluster.local, mongodbshardvcx-1.mongodb-shard-internal-vcx.myproject.svc.cluster.local)"
+    value: 'mongodbshardpmg-1.mongodb-shard-internal-pmg.myproject.svc.cluster.local,mongodbshardvcx-1.mongodb-shard-internal-vcx.myproject.svc.cluster.local'
+    required: true
+
+  - name: MONGODB_IMAGE
+    displayName: "MongoDB Docker Image"
+    description: "A reference to a supported MongoDB Docker image."
+    value: "bornemannjs/mongodb-34:0.28"
+    required: true
+
+  - name: MEMORY_LIMIT
+    displayName: "Memory Limit"
+    description: "Maximum amount of memory the container can use."
+    value: "512Mi"
+
+objects:
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    generation: 1
+    labels:
+      app: mongodb
+    name: mongos
+  spec:
+    replicas: 1
+    selector:
+      app: mongodb
+      deploymentconfig: mongos
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        labels:
+          app: mongodb
+          deploymentconfig: mongos
+      spec:
+        containers:
+        - name: mongos
+          resources:
+            limits:
+              memory: "${MEMORY_LIMIT}"
+          env:
+            - name:     MONGODB_ADMIN_PASSWORD
+              value: "${MONGODB_ADMIN_PASSWORD}"
+            - name:     MONGODB_KEYFILE_VALUE
+              value: "${MONGODB_KEYFILE_VALUE}"
+            - name:     CONFIG_REPLSET_NAME
+              value: "${CONFIG_REPLSET_NAME}"
+            - name:     CONFIG_REPLSET_SERVER
+              value: "${CONFIG_REPLSET_SERVER}"
+            - name:     REPLSET_NAMES
+              value: "${REPLSET_NAMES}"
+            - name:     REPLSET_SERVERS
+              value: "${REPLSET_SERVERS}"
+          args:
+          - run-mongos
+          image: "${MONGODB_IMAGE}"
+          imagePullPolicy: IfNotPresent
+          ports:
+          - containerPort: 27017
+            protocol: TCP
+            failureThreshold: 3
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          livenessProbe:
+            initialDelaySeconds: 60
+            tcpSocket:
+              port: 27017
+          readinessProbe:
+            initialDelaySeconds: 10
+            exec:
+              command:
+                - "mongo-is-ready"
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: mongodb
+    name: mongos
+  spec:
+    clusterIP: None
+    ports:
+    - name: 27017-tcp
+      port: 27017
+      protocol: TCP
+      targetPort: 27017
+    selector:
+      app: mongodb
+      deploymentconfig: mongos
+    sessionAffinity: None
+    type: ClusterIP
