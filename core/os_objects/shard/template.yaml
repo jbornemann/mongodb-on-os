@@ -1,15 +1,16 @@
 kind: Template
 apiVersion: v1
 metadata:
-  name: mongodb-aws-on-openshift
+  name: mongodb-shard-aws-on-openshift
   annotations:
-    description: "MongoDB on OpenShift, AWS Hosted"
+    openshift.io/display-name: "AWS MongoDB Shard"
+    description: "MongoDB Shard on OpenShift, AWS Hosted"
     iconClass: "icon-mongodb"
-    tags: "database,mongodb"
+    tags: "database,mongodb,nosql"
 parameters:
   - name: MONGODB_USER
     displayName: "MongoDB Connection Username"
-    description: "Username for MongoDB user that will be used for accessing the database."
+    description: "Username for MongoDB user that will be used for client connections"
     generate: expression
     from: "[a-zA-Z0-9]{3}"
     required: true
@@ -23,7 +24,7 @@ parameters:
 
   - name: MONGODB_DATABASE
     displayName: "MongoDB Database Name"
-    description: "Name of the MongoDB database accessed."
+    description: "Name of a sample MongoDB database to initialize"
     value: sampledb
     required: true
 
@@ -38,12 +39,6 @@ parameters:
     displayName: "Shard Replica Set Name"
     description: "The name of the shard replica set."
     value: rs0
-    required: true
-
-  - name: MONGODB_CONFIGSVR_REPLICA_NAME
-    displayName: "ConfigServer Replica Set Name"
-    description: "The name of the configuration server replica set."
-    value: cs0
     required: true
 
   - name: MONGODB_KEYFILE_VALUE
@@ -86,7 +81,6 @@ objects:
         shard_seed: "${SHARD_SEED}"
       annotations:
         service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
-        service.alpha.openshift.io/dependencies: '[{"name":"mongodb-configsvr-internal-${SHARD_SEED}","namespace":"","kind":"Service"}]'
     spec:
       clusterIP: None
       # the list of ports that are exposed by this service
@@ -151,85 +145,6 @@ objects:
       volumeClaimTemplates:
         - metadata:
             name: mongo-data
-            labels:
-              shard_seed: "${SHARD_SEED}"
-            annotations:
-          spec:
-            accessModes: [ ReadWriteOnce ]
-            resources:
-              requests:
-                storage: "${VOLUME_CAPACITY}"
-  # A headless service to create DNS records
-  - kind: Service
-    apiVersion: v1
-    metadata:
-      name: "mongodb-configsvr-internal-${SHARD_SEED}"
-      labels:
-        shard_seed: "${SHARD_SEED}"
-      annotations:
-        service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
-    spec:
-      clusterIP: None
-      # the list of ports that are exposed by this service
-      ports:
-        - name: mongodb
-          port: 27017
-      # will route traffic to pods having labels matching this selector
-      selector:
-        name: "mongodbconfigsvr${SHARD_SEED}"
-
-  - kind: StatefulSet
-    apiVersion: apps/v1beta1
-    metadata:
-      name: "mongodbconfigsvr${SHARD_SEED}"
-    spec:
-      # pets get DNS/hostnames that follow the pattern: ${metadata.name}-NUM.${spec.serviceName}.default.svc.cluster.local
-      serviceName: "mongodb-configsvr-internal-${SHARD_SEED}"
-      replicas: 3
-      # describes the pod that will be created if insufficient replicas are detected
-      template:
-        metadata:
-          labels:
-            name: "mongodbconfigsvr${SHARD_SEED}"
-            shard_seed: "${SHARD_SEED}"
-            app: "mongodb"
-        spec:
-          containers:
-            - name: mongo-container
-              image: "${MONGODB_IMAGE}"
-              ports:
-                - containerPort: 27017
-              args:
-                - "run-configsvr"
-              volumeMounts:
-                - name: mongo-configsvr-data
-                  mountPath: "/var/lib/mongodb/data"
-              env:
-                - name: MONGODB_USER
-                  value: "${MONGODB_USER}"
-                - name: MONGODB_PASSWORD
-                  value: "${MONGODB_PASSWORD}"
-                - name: MONGODB_DATABASE
-                  value: "${MONGODB_DATABASE}"
-                - name: MONGODB_ADMIN_PASSWORD
-                  value: "${MONGODB_ADMIN_PASSWORD}"
-                - name: MONGODB_REPLICA_NAME
-                  value: "${MONGODB_CONFIGSVR_REPLICA_NAME}"
-                - name: MONGODB_KEYFILE_VALUE
-                  value: "${MONGODB_KEYFILE_VALUE}"
-                - name: MONGODB_SERVICE_NAME
-                  value: "mongodb-configsvr-internal"
-              resources:
-                limits:
-                  memory: "${MEMORY_LIMIT}"
-              readinessProbe:
-                exec:
-                  command:
-                    - stat
-                    - /tmp/initialized
-      volumeClaimTemplates:
-        - metadata:
-            name: mongo-configsvr-data
             labels:
               shard_seed: "${SHARD_SEED}"
             annotations:
