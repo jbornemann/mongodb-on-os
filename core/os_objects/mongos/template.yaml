@@ -84,6 +84,7 @@ objects:
         labels:
           app: mongodb
           deploymentconfig: mongos
+          component: mongos
       spec:
         containers:
         - name: mongos
@@ -132,18 +133,11 @@ objects:
 - apiVersion: v1
   kind: Service
   metadata:
-    labels:
-      app: mongodb
-    name: mongos
+    name: mongos-ext
   spec:
-    clusterIP: None
     ports:
     - name: 27017-tcp
       port: 27017
-      protocol: TCP
-      targetPort: 27017
+    type: LoadBalancer
     selector:
-      app: mongodb
-      deploymentconfig: mongos
-    sessionAffinity: None
-    type: ClusterIP
+      component: mongos
