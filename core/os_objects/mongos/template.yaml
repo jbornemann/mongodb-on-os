@@ -35,13 +35,13 @@ parameters:
 
   - name: REPLSET_NAMES
     displayName: "ReplicaSet Names"
-    description: "The names of all the ReplicaSets of each shard to cluster (Corresponds with order of REPLSET_SERVERS). Comma delimited. (e.g rs0,rs1,rs2)"
+    description: "The names of all the ReplicaSets of each shard to cluster (Corresponds with order of REPLSET_SERVERS). Comma or newline delimited. (e.g rs0,rs1,rs2)"
     value: 'rs0,rs1'
     required: true
 
   - name: REPLSET_SERVERS
     displayName: "ReplicaSet URIs"
-    description: "URIs of a ReplicaSet member from each shard to add to cluster (Corresponds with order of REPLSET_NAMES). Comma delimited. (e.g mongodbshardpmg-1.mongodb-shard-internal-pmg.myproject.svc.cluster.local, mongodbshardvcx-1.mongodb-shard-internal-vcx.myproject.svc.cluster.local)"
+    description: "URIs of a ReplicaSet member from each shard to add to cluster (Corresponds with order of REPLSET_NAMES). Comma or newline delimited. (e.g mongodbshardpmg-1.mongodb-shard-internal-pmg.myproject.svc.cluster.local, mongodbshardvcx-1.mongodb-shard-internal-vcx.myproject.svc.cluster.local)"
     value: 'mongodbshardpmg-1.mongodb-shard-internal-pmg.myproject.svc.cluster.local,mongodbshardvcx-1.mongodb-shard-internal-vcx.myproject.svc.cluster.local'
     required: true
 
@@ -92,18 +92,30 @@ objects:
             limits:
               memory: "${MEMORY_LIMIT}"
           env:
-            - name:     MONGODB_ADMIN_PASSWORD
-              value: "${MONGODB_ADMIN_PASSWORD}"
-            - name:     MONGODB_KEYFILE_VALUE
-              value: "${MONGODB_KEYFILE_VALUE}"
-            - name:     CONFIG_REPLSET_NAME
-              value: "${CONFIG_REPLSET_NAME}"
-            - name:     CONFIG_REPLSET_SERVER
-              value: "${CONFIG_REPLSET_SERVER}"
-            - name:     REPLSET_NAMES
-              value: "${REPLSET_NAMES}"
-            - name:     REPLSET_SERVERS
-              value: "${REPLSET_SERVERS}"
+            - name: MONGODB_ADMIN_PASSWORD
+              value: ${MONGODB_ADMIN_PASSWORD}
+            - name: MONGODB_KEYFILE_VALUE
+              value: ${MONGODB_KEYFILE_VALUE}
+            - name: CONFIG_REPLSET_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: mongos-config
+                  key: config.rep.name
+            - name: CONFIG_REPLSET_SERVER
+              valueFrom:
+                configMapKeyRef:
+                  name: mongos-config
+                  key: config.server
+            - name: REPLSET_NAMES
+              valueFrom:
+                configMapKeyRef:
+                  name: mongos-config
+                  key: rep.names
+            - name: REPLSET_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: mongos-config
+                  key: rep.servers
           args:
           - run-mongos
           image: "${MONGODB_IMAGE}"
@@ -141,3 +153,13 @@ objects:
     type: LoadBalancer
     selector:
       component: mongos
+- kind: ConfigMap
+  apiVersion: v1
+  metadata:
+    name: mongos-config
+    app: mongodb
+  data:
+    config.rep.name: ${CONFIG_REPLSET_NAME}
+    config.server: ${CONFIG_REPLSET_SERVER}
+    rep.names: ${REPLSET_NAMES}
+    rep.servers: ${REPLSET_SERVERS}
