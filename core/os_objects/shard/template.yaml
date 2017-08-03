@@ -51,7 +51,7 @@ parameters:
   - name: MONGODB_IMAGE
     displayName: "MongoDB Docker Image"
     description: "A reference to a supported MongoDB Docker image."
-    value: "bornemannjs/mongodb-34:0.28"
+    value: "bornemannjs/mongodb-34:0.56"
     required: true
 
   - name: VOLUME_CAPACITY
@@ -133,9 +133,25 @@ objects:
                 - name: MONGODB_KEYFILE_VALUE
                   value: "${MONGODB_KEYFILE_VALUE}"
                 - name: MONGODB_SERVICE_NAME
-                  value: "mongodb-shard-internal"
+                  value: "mongodb-shard-internal-${SHARD_SEED}"
                 - name: SHARD_ENABLED
                   value: "true"
+                - name: ENABLE_TLS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: shard-${SHARD_SEED}-config
+                      key: ssl.enabled
+                - name: SSL_CA_PATH
+                  valueFrom:
+                    configMapKeyRef:
+                      name: shard-${SHARD_SEED}-config
+                      key: ssl.ca.path
+                - name: ADDITIONAL_SSL_OPTS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: shard-${SHARD_SEED}-config
+                      key: additional.ssl.opts
+
               resources:
                 limits:
                   memory: "${MEMORY_LIMIT}"
@@ -160,3 +176,12 @@ objects:
             resources:
               requests:
                 storage: "${VOLUME_CAPACITY}"
+  - kind: ConfigMap
+    apiVersion: v1
+    metadata:
+      name: shard-${SHARD_SEED}-config
+      app: mongodb
+    data:
+      ssl.enabled: "true"
+      ssl.ca.path: ""
+      additional.ssl.opts: "--sslAllowConnectionsWithoutCertificates --sslDisabledProtocols TLS1_0,TLS1_1"

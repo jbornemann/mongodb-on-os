@@ -48,7 +48,7 @@ parameters:
   - name: MONGODB_IMAGE
     displayName: "MongoDB Docker Image"
     description: "A reference to a supported MongoDB Docker image."
-    value: "bornemannjs/mongodb-34:0.28"
+    value: "bornemannjs/mongodb-34:0.56"
     required: true
 
   - name: MEMORY_LIMIT
@@ -96,6 +96,21 @@ objects:
               value: ${MONGODB_ADMIN_PASSWORD}
             - name: MONGODB_KEYFILE_VALUE
               value: ${MONGODB_KEYFILE_VALUE}
+            - name: ENABLE_TLS
+              valueFrom:
+                configMapKeyRef:
+                  name: mongos-config
+                  key: ssl.enabled
+            - name: SSL_CA_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: mongos-config
+                  key: ssl.ca.path
+            - name: ADDITIONAL_SSL_OPTS
+              valueFrom:
+                configMapKeyRef:
+                  name: mongos-config
+                  key: additional.ssl.opts
             - name: CONFIG_REPLSET_NAME
               valueFrom:
                 configMapKeyRef:
@@ -163,3 +178,6 @@ objects:
     config.server: ${CONFIG_REPLSET_SERVER}
     rep.names: ${REPLSET_NAMES}
     rep.servers: ${REPLSET_SERVERS}
+    ssl.enabled: "true"
+    ssl.ca.path: ""
+    additional.ssl.opts: "--sslAllowConnectionsWithoutCertificates --sslDisabledProtocols TLS1_0,TLS1_1"
