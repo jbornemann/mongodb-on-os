@@ -171,6 +171,7 @@ objects:
               app: mongodb
               shard_seed: "${SHARD_SEED}"
             annotations:
+              volume.beta.kubernetes.io/storage-class: us-east-storage
           spec:
             accessModes: [ ReadWriteOnce ]
             resources:

@@ -135,6 +135,7 @@ objects:
             labels:
               app: mongodb
             annotations:
+              volume.beta.kubernetes.io/storage-class: us-east-storage
           spec:
             accessModes: [ ReadWriteOnce ]
             resources:
