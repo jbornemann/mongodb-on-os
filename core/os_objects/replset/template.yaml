@@ -1,10 +1,10 @@
 kind: Template
 apiVersion: v1
 metadata:
-  name: mongodb-shard-aws-on-openshift
+  name: mongodb-replset-aws-on-openshift
   annotations:
-    openshift.io/display-name: "AWS MongoDB Shard"
-    description: "MongoDB Shard on OpenShift, AWS Hosted"
+    openshift.io/display-name: "AWS MongoDB ReplicaSet"
+    description: "MongoDB Replica Set on OpenShift, AWS Hosted"
     iconClass: "icon-mongodb"
     tags: "database,mongodb,nosql"
 parameters:
@@ -35,9 +35,9 @@ parameters:
     from: "[a-zA-Z0-9]{16}"
     required: true
 
-  - name: MONGODB_SHARD_REPLICA_NAME
-    displayName: "Shard Replica Set Name"
-    description: "The name of the shard replica set."
+  - name: MONGODB_REPLSET_REPLICA_NAME
+    displayName: "Replica Set Name"
+    description: "The name of the replica set."
     value: rs0
     required: true
 
@@ -51,7 +51,7 @@ parameters:
   - name: MONGODB_IMAGE
     displayName: "MongoDB Docker Image"
     description: "A reference to a supported MongoDB Docker image."
-    value: "bornemannjs/mongodb-34:0.56"
+    value: "bornemannjs/mongodb-34:0.66"
     required: true
 
   - name: VOLUME_CAPACITY
@@ -65,9 +65,9 @@ parameters:
     description: "Maximum amount of memory the container can use."
     value: "512Mi"
 
-  - name: SHARD_SEED
-    displayName: "Shard seed"
-    description: "For creating unique objects from this template in a sharded environment. A value will be generated. Nothing to do here."
+  - name: REPLSET_SEED
+    displayName: "Replica Set seed"
+    description: "For creating unique objects from this template in a multiple replica set environment. A value will be generated. Nothing to do here."
     generate: expression
     from: "[a-z]{3}"
 
@@ -76,10 +76,10 @@ objects:
   - kind: Service
     apiVersion: v1
     metadata:
-      name: "mongodb-shard-internal-${SHARD_SEED}"
+      name: "mongodb-replset-internal-${REPLSET_SEED}"
       labels:
         app: mongodb
-        shard_seed: "${SHARD_SEED}"
+        replset_seed: "${REPLSET_SEED}"
       annotations:
         service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
     spec:
@@ -90,23 +90,23 @@ objects:
           port: 27017
       # will route traffic to pods having labels matching this selector
       selector:
-        name: "mongodbshard${SHARD_SEED}"
+        name: "mongodbreplset${REPLSET_SEED}"
 
   - kind: StatefulSet
     apiVersion: apps/v1beta1
     metadata:
       app: mongodb
-      name: "mongodbshard${SHARD_SEED}"
+      name: "mongodbreplset${REPLSET_SEED}"
     spec:
       # pets get DNS/hostnames that follow the pattern: ${metadata.name}-NUM.${spec.serviceName}.default.svc.cluster.local
-      serviceName: "mongodb-shard-internal-${SHARD_SEED}"
+      serviceName: "mongodb-replset-internal-${REPLSET_SEED}"
       replicas: 4
       # describes the pod that will be created if insufficient replicas are detected
       template:
         metadata:
           labels:
-            name: "mongodbshard${SHARD_SEED}"
-            shard_seed: "${SHARD_SEED}"
+            name: "mongodbreplset${REPLSET_SEED}"
+            replset_seed: "${REPLSET_SEED}"
             app: "mongodb"
         spec:
           containers:
@@ -129,27 +129,27 @@ objects:
                 - name: MONGODB_ADMIN_PASSWORD
                   value: "${MONGODB_ADMIN_PASSWORD}"
                 - name: MONGODB_REPLICA_NAME
-                  value: "${MONGODB_SHARD_REPLICA_NAME}"
+                  value: "${MONGODB_REPLSET_REPLICA_NAME}"
                 - name: MONGODB_KEYFILE_VALUE
                   value: "${MONGODB_KEYFILE_VALUE}"
                 - name: MONGODB_SERVICE_NAME
-                  value: "mongodb-shard-internal-${SHARD_SEED}"
+                  value: "mongodb-replset-internal-${REPLSET_SEED}"
                 - name: SHARD_ENABLED
                   value: "true"
                 - name: ENABLE_TLS
                   valueFrom:
                     configMapKeyRef:
-                      name: shard-${SHARD_SEED}-config
+                      name: replset-${REPLSET_SEED}-config
                       key: ssl.enabled
                 - name: SSL_CA_PATH
                   valueFrom:
                     configMapKeyRef:
-                      name: shard-${SHARD_SEED}-config
+                      name: replset-${REPLSET_SEED}-config
                       key: ssl.ca.path
                 - name: ADDITIONAL_SSL_OPTS
                   valueFrom:
                     configMapKeyRef:
-                      name: shard-${SHARD_SEED}-config
+                      name: replset-${REPLSET_SEED}-config
                       key: additional.ssl.opts
 
               resources:
@@ -169,7 +169,7 @@ objects:
             name: mongo-data
             labels:
               app: mongodb
-              shard_seed: "${SHARD_SEED}"
+              replset_seed: "${REPLSET_SEED}"
             annotations:
               volume.beta.kubernetes.io/storage-class: us-east-storage
           spec:
@@ -180,7 +180,7 @@ objects:
   - kind: ConfigMap
     apiVersion: v1
     metadata:
-      name: shard-${SHARD_SEED}-config
+      name: replset-${REPLSET_SEED}-config
       app: mongodb
     data:
       ssl.enabled: "true"

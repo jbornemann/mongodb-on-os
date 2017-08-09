@@ -32,7 +32,7 @@ parameters:
   - name: MONGODB_IMAGE
     displayName: "MongoDB Docker Image"
     description: "A reference to a supported MongoDB Docker image."
-    value: "bornemannjs/mongodb-34:0.56"
+    value: "bornemannjs/mongodb-34:0.66"
     required: true
 
   - name: VOLUME_CAPACITY
