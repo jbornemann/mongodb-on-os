@@ -32,7 +32,7 @@ parameters:
   - name: MONGODB_IMAGE
     displayName: "MongoDB Docker Image"
     description: "A reference to a supported MongoDB Docker image."
-    value: "bornemannjs/mongodb-34:0.66"
+    value: "bornemannjs/mongodb-34:0.71"
     required: true
 
   - name: VOLUME_CAPACITY
@@ -45,6 +45,12 @@ parameters:
     displayName: "Memory Limit"
     description: "Maximum amount of memory the container can use."
     value: "512Mi"
+
+  - name: ADDITIONAL_STARTUP_OPTS
+    displayName: "Additional Startup Opts"
+    description: "Additional configuraiton options when starting the configuration server"
+    required: false
+    value: ""
 
 objects:
   # A headless service to create DNS records
@@ -117,6 +123,11 @@ objects:
                     configMapKeyRef:
                       name: configsvr-config
                       key: additional.ssl.opts
+                - name: ADDITIONAL_STARTUP_OPTS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: configsvr-config
+                      key: additional.startup.opts
               resources:
                 limits:
                   memory: "${MEMORY_LIMIT}"
@@ -150,3 +161,4 @@ objects:
       ssl.enabled: "true"
       ssl.ca.path: ""
       additional.ssl.opts: "--sslAllowConnectionsWithoutCertificates --sslDisabledProtocols TLS1_0,TLS1_1"
+      additional.startup.opts: "${ADDITIONAL_STARTUP_OPTS}"

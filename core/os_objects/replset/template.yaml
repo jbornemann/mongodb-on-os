@@ -51,7 +51,7 @@ parameters:
   - name: MONGODB_IMAGE
     displayName: "MongoDB Docker Image"
     description: "A reference to a supported MongoDB Docker image."
-    value: "bornemannjs/mongodb-34:0.66"
+    value: "bornemannjs/mongodb-34:0.71"
     required: true
 
   - name: VOLUME_CAPACITY
@@ -70,6 +70,12 @@ parameters:
     description: "For creating unique objects from this template in a multiple replica set environment. A value will be generated. Nothing to do here."
     generate: expression
     from: "[a-z]{3}"
+
+  - name: ADDITIONAL_STARTUP_OPTS
+    displayName: "Additional Startup Opts"
+    description: "Additional configuraiton options when starting the replica set"
+    required: false
+    value: ""
 
 objects:
   # A headless service to create DNS records
@@ -151,7 +157,11 @@ objects:
                     configMapKeyRef:
                       name: replset-${REPLSET_SEED}-config
                       key: additional.ssl.opts
-
+                - name: ADDITIONAL_STARTUP_OPTS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: replset-${REPLSET_SEED}-config
+                      key: additional.startup.opts
               resources:
                 limits:
                   memory: "${MEMORY_LIMIT}"
@@ -186,3 +196,4 @@ objects:
       ssl.enabled: "true"
       ssl.ca.path: ""
       additional.ssl.opts: "--sslAllowConnectionsWithoutCertificates --sslDisabledProtocols TLS1_0,TLS1_1"
+      additional.startup.opts: "${ADDITIONAL_STARTUP_OPTS}"

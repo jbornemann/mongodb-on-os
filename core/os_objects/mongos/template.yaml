@@ -48,13 +48,19 @@ parameters:
   - name: MONGODB_IMAGE
     displayName: "MongoDB Docker Image"
     description: "A reference to a supported MongoDB Docker image."
-    value: "bornemannjs/mongodb-34:0.66"
+    value: "bornemannjs/mongodb-34:0.71"
     required: true
 
   - name: MEMORY_LIMIT
     displayName: "Memory Limit"
     description: "Maximum amount of memory the container can use."
     value: "512Mi"
+
+  - name: ADDITIONAL_STARTUP_OPTS
+    displayName: "Additional Startup Opts"
+    description: "Additional configuraiton options when starting the shard router"
+    required: false
+    value: ""
 
 objects:
 - apiVersion: v1
@@ -131,6 +137,11 @@ objects:
                 configMapKeyRef:
                   name: mongos-config
                   key: rep.servers
+            - name: ADDITIONAL_STARTUP_OPTS
+              valueFrom:
+                configMapKeyRef:
+                  name: mongos-config
+                  key: additional.startup.opts
           args:
           - run-mongos
           image: "${MONGODB_IMAGE}"
@@ -181,3 +192,4 @@ objects:
     ssl.enabled: "true"
     ssl.ca.path: ""
     additional.ssl.opts: "--sslAllowConnectionsWithoutCertificates --sslDisabledProtocols TLS1_0,TLS1_1"
+    additional.startup.opts: "${ADDITIONAL_STARTUP_OPTS}"
